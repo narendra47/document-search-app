@@ -1,7 +1,8 @@
 from typing import Dict, Any, List
-from fastapi import FastAPI, Query, HTTPException
+from fastapi import FastAPI, Query, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
 
+from app.models.search_model import SearchResponse, SearchRequest, SearchResult
 from app.services.google_drive_service import GoogleDriveService
 from app.services.elastic_search_service import ElasticsearchService
 from app.utils.logger import setup_logger
@@ -25,61 +26,35 @@ class DocumentSearchAPI:
             return {"message": "Document Search API is running"}
 
         @self.app.post("/index")
-        async def index_documents():
-            """Index all documents from Google Drive"""
+        async def index_documents(background_tasks: BackgroundTasks):
+            background_tasks.add_task(self._index_documents)
+            return {"message": "Indexing started asynchronously..."}
+
+        @self.app.post("/search", response_model=SearchResponse)
+        async def search_documents(search_request: SearchRequest):
+            q = search_request.query.strip()
+            size = search_request.size
+
+            if not q:
+                raise HTTPException(status_code=400, detail="Search query cannot be empty")
+
             try:
-                documents = self.drive_service.get_all_documents()
-                indexed_count = 0
-
-                for document in documents:
-                    if self.search_engine.index_document(document):
-                        indexed_count += 1
-
-                self.search_engine.refresh_index()
-
-                return {
-                    "message": f"Indexed {indexed_count} out of {len(documents)} documents",
-                    "total_documents": len(documents),
-                    "indexed_documents": indexed_count
-                }
-
-            except Exception as e:
-                self.logger.error(f"Error indexing documents: {str(e)}")
-                raise HTTPException(status_code=500, detail="Failed to index documents")
-
-        @self.app.get("/search")
-        async def search_documents(
-                q: str = Query(..., description="Search query"),
-                size: int = Query(10, description="Number of results to return")
-        ):
-            """Search for documents"""
-            try:
-                if not q.strip():
-                    raise HTTPException(status_code=400, detail="Search query cannot be empty")
-
                 results = self.search_engine.search(q, size)
+                formatted = [
+                    SearchResult(
+                        file_path=r["file_path"],
+                        name=r["name"],
+                        web_view_link=r["web_view_link"],
+                        score=r["score"]
+                    )
+                    for r in results
+                ]
+                return SearchResponse(query=q, total_results=len(formatted), results=formatted)
 
-                # Format results for API response
-                formatted_results = []
-                for result in results:
-                    formatted_results.append({
-                        "file_path": result['file_path'],
-                        "name": result['name'],
-                        "web_view_link": result['web_view_link'],
-                        "score": result['score']
-                    })
-
-                return {
-                    "query": q,
-                    "total_results": len(formatted_results),
-                    "results": formatted_results
-                }
-
-            except HTTPException:
-                raise
             except Exception as e:
-                self.logger.error(f"Error searching for '{q}': {str(e)}")
+                self.logger.error(f"Search error for query='{q}': {str(e)}")
                 raise HTTPException(status_code=500, detail="Search failed")
+
 
         @self.app.get("/health")
         async def health_check():
@@ -100,6 +75,17 @@ class DocumentSearchAPI:
                     content={"status": "unhealthy", "error": str(e)}
                 )
 
+    def _index_documents(self):
+        try:
+            documents = self.drive_service.get_all_documents()
+            indexed_count = 0
+            for doc in documents:
+                if self.search_engine.index_document(doc):
+                    indexed_count += 1
+            self.search_engine.refresh_index()
+            self.logger.info(f"Indexed {indexed_count} out of {len(documents)} documents")
+        except Exception as e:
+            self.logger.error(f"Indexing failed: {str(e)}")
+
     def get_app(self):
-        """Get FastAPI application instance"""
         return self.app

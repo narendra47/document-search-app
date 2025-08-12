@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.models.document import Document
+from pydantic import BaseModel, Field
 
 
 class SearchModel(ABC):
@@ -25,3 +26,21 @@ class SearchModel(ABC):
     def document_exists(self, document_id: str) -> bool:
         """Check if document exists in index"""
         pass
+
+# Request Models
+class SearchRequest(BaseModel):
+    query: str = Field(..., min_length=1, description="Search query string")
+    size: Optional[int] = Field(10, ge=1, le=100, description="Number of results to return")
+
+# Response Models
+class SearchResult(BaseModel):
+    file_path: str
+    name: str
+    web_view_link: str
+    score: float
+
+
+class SearchResponse(BaseModel):
+    query: str
+    total_results: int
+    results: List[SearchResult]
