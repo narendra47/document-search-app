@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 from app.models.document import Document
 from pydantic import BaseModel, Field
+from enum import Enum
 
 
 class SearchModel(ABC):
@@ -44,3 +45,9 @@ class SearchResponse(BaseModel):
     query: str
     total_results: int
     results: List[SearchResult]
+
+class IndexStatus(str, Enum):
+    idle = "idle"
+    running = "running"
+    completed = "completed"
+    failed = "failed"

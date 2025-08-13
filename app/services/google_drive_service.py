@@ -165,6 +165,7 @@ class GoogleDriveService:
 
             # Extract text content
             text_content = self.pdf_processor.extract_text(file_content)
+           # text_content = self.pdf_processor.extract_text_with_pages(file_content)
             if not text_content:
                 self.logger.warning(f"No text content extracted from {file_info['name']}")
                 text_content = ""

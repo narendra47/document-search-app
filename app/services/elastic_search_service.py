@@ -145,6 +145,6 @@ class ElasticsearchService(SearchModel):
         """Refresh the Elasticsearch index"""
         try:
             self.es.indices.refresh(index=self.index_name)
-            self.logger.debug("Refreshed Elasticsearch index")
+            self.logger.info("Refreshed Elasticsearch index")
         except Exception as e:
             self.logger.error(f"Error refreshing index: {str(e)}")

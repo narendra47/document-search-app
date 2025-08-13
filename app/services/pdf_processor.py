@@ -1,7 +1,7 @@
 import io
 from typing import Optional, List, Dict
-import fitz  # PyMuPDF
 from app.utils.logger import setup_logger
+import fitz
 
 
 class PDFProcessor:
